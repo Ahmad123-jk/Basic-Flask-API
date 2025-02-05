@@ -60,7 +60,11 @@ def get_pokemons():
         }
     )
 
-
+#route pour récupérer un pokemon par son id
+@app.route("/api/pokemon/<int:id>", methods=["GET"])
+def get_pokemon(id):
+    pokemon = Pokemon.query.get_or_404(id) #récupération du pokemon par son id ou 404 si non trouvé
+    return jsonify(pokemon_schema.dump(pokemon))
 
 
 if __name__ == '__main__':
