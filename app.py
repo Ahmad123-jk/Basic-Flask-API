@@ -66,6 +66,43 @@ def get_pokemon(id):
     pokemon = Pokemon.query.get_or_404(id) #récupération du pokemon par son id ou 404 si non trouvé
     return jsonify(pokemon_schema.dump(pokemon))
 
+#route pour modifier les données d'un pokemon récupéré par son id
+@app.route("/api/pokemon/<int:id>",methods=["PUT"])
+def update_pokemon(id):
+    pokemon = Pokemon.query.get_or_404(id) # Vérifie si le Pokémon existe sinon retourne 404
+
+    #récupérer les données de la requête de l'utilisateur
+    data = request.json
+    print(data["identifier"])
+
+    if not data:
+        return jsonify({"message": "No input data provided"}), 400
+
+    modified = False
+
+    #vérifier si les données sont présentes avant de les modifier
+    if "identifier" in data and data["identifier"] != pokemon.identifier:
+        pokemon.identifier = data["identifier"]
+        modified = True
+
+    if "height" in data and data["height"] != pokemon.height:
+        pokemon.height = data["height"]
+        modified = True
+
+    if "weight" in data and data["weight"] != pokemon.weight:
+        pokemon.weight = data["weight"]
+        modified = True
+
+    if not modified:
+        return jsonify({"message": "No data changed"}), 400
+
+    db.session.commit() #sauvegarde des modifications dans la base de données
+
+    return jsonify({"message": "Pokemon updated successfully", "pokemon": pokemon_schema.dump(pokemon)})
+
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
