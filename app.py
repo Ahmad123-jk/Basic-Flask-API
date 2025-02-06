@@ -18,10 +18,14 @@ ma = Marshmallow(app)
 class Pokemon(db.Model):
     __tablename__ = 'pokemon'
 
-    id = db.Column(db.Integer, primary_key=True)
-    identifier = db.Column(db.String(50))
-    height = db.Column(db.Integer)
-    weight = db.Column(db.Integer)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    identifier = db.Column(db.String(100), nullable=False)
+    species_id = db.Column(db.Integer, nullable=False)
+    height = db.Column(db.Integer, nullable=False)
+    weight = db.Column(db.Integer, nullable=False)
+    base_experience = db.Column(db.Integer, nullable=False)
+    order = db.Column(db.Integer, nullable=False)
+    is_default = db.Column(db.Boolean, nullable=False)
 
 
 # Schéma pour la sérialisation JSON
