@@ -101,8 +101,36 @@ def update_pokemon(id):
     return jsonify({"message": "Pokemon updated successfully", "pokemon": pokemon_schema.dump(pokemon)})
 
 
+@app.route("api/pokemon/", methods=["POST"])
+def add_pokemon():
+    try:
+        data = request.json
 
+        # Validate required fields
+        required_fields = ["id", "identifier", "species_id", "height", "weight", "base_experience", "order",
+                           "is_default"]
+        if not all(field in data for field in required_fields):
+            return jsonify({"error": "Missing required fields"}), 400
 
+        new_pokemon = Pokemon(
+            id=data["id"],
+            identifier=data["identifier"],
+            species_id=data["species_id"],
+            height=data["height"],
+            weight=data["weight"],
+            base_experience=data["base_experience"],
+            order=data["order"],
+            is_default=data["is_default"]
+        )
+
+        db.session.add(new_pokemon)
+        db.session.commit()
+
+        return jsonify({"message": "Pokemon added successfully!", "pokemon": data}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
