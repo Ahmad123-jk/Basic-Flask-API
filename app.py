@@ -14,27 +14,67 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 ma = Marshmallow(app)
 
-#Modèle POkemon basé sur la table existante
+# Modèle des tables
 class Pokemon(db.Model):
     __tablename__ = 'pokemon'
+    id = db.Column(db.Integer, primary_key=True)
+    identifier = db.Column(db.String(50))
+    height = db.Column(db.Integer)
+    weight = db.Column(db.Integer)
+    base_experience = db.Column(db.Integer)
+    order = db.Column(db.Integer)
+    is_default = db.Column(db.Boolean)
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    identifier = db.Column(db.String(100), nullable=False)
-    species_id = db.Column(db.Integer, nullable=False)
-    height = db.Column(db.Integer, nullable=False)
-    weight = db.Column(db.Integer, nullable=False)
-    base_experience = db.Column(db.Integer, nullable=False)
-    order = db.Column(db.Integer, nullable=False)
-    is_default = db.Column(db.Boolean, nullable=False)
+class PokemonSpecies(db.Model):
+    __tablename__ = 'pokemon_species'
+    id = db.Column(db.Integer, primary_key=True)
+    identifier = db.Column(db.String(50))
+    generation_id = db.Column(db.Integer)
+    evolves_from_species_id = db.Column(db.Integer, db.ForeignKey('pokemon_species.id'))
+    evolution_chain_id = db.Column(db.Integer)
+    color_id = db.Column(db.Integer, db.ForeignKey('pokemon_colors.id'))
+    shape_id = db.Column(db.Integer, db.ForeignKey('pokemon_shapes.id'))
+    habitat_id = db.Column(db.Integer)
+    gender_rate = db.Column(db.Integer)
+    capture_rate = db.Column(db.Integer)
+    base_happiness = db.Column(db.Integer)
+    is_baby = db.Column(db.Boolean)
+    hatch_counter = db.Column(db.Integer)
+    has_gender_differences = db.Column(db.Boolean)
+    growth_rate_id = db.Column(db.Integer)
+    forms_switchable = db.Column(db.Boolean)
+    order = db.Column(db.Integer)
+    conquest_order = db.Column(db.Integer)
+
+    color = db.relationship("PokemonColor")
+    shape = db.relationship("PokemonShape")
+
+class PokemonColor(db.Model):
+    __tablename__ = 'pokemon_colors'
+    id = db.Column(db.Integer, primary_key=True)
+    identifier = db.Column(db.String(50))
+
+class PokemonShape(db.Model):
+    __tablename__ = 'pokemon_shapes'
+    id = db.Column(db.Integer, primary_key=True)
+    identifier = db.Column(db.String(50))
 
 
-# Schéma pour la sérialisation JSON
+#schémas pour la sérialisation JSON
 class PokemonSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = Pokemon
 
+class PokemonSpeciesSchema(ma.SQLAlchemyAutoSchema):
+    evolves_from_species_id = ma.Function(lambda obj: obj.evolves_from_species_id if obj and obj.evolves_from_species_id else None)
+    color = ma.Function(lambda obj: obj.color.identifier if obj and obj.color else None)
+    shape_id = ma.Function(lambda obj: obj.shape.identifier if obj and obj.shape else None)
+
+    class Meta:
+        model = PokemonSpecies
+
 pokemon_schema = PokemonSchema()
-pokemons_schema = PokemonSchema(many=True)
+pokemon_species_schema = PokemonSpeciesSchema()
 
 @app.route("/")
 def hello_world():
@@ -42,68 +82,79 @@ def hello_world():
         "message": "Hello, World!"
     }
 
-#route pour récupérer tous les pokemons
-@app.route("/api/pokemon", methods=["GET"])
+@app.route("/api/pokemon",methods=["GET"])
 def get_pokemons():
-    page = request.args.get('page', 1, type=int) #page de la requête
-    per_page = request.args.get('per_page', 10, type=int) #nombre de pokemons par page
+    page = request.args.get('page', 1, type=int)  # Page par défaut = 1
+    per_page = request.args.get('per_page', 10, type=int)  # Nombre d'éléments par page (par défaut 10)
 
-    pokemons = Pokemon.query.paginate(page=page, per_page=per_page, error_out=False)
+    query = db.session.query(Pokemon, PokemonSpecies).outerjoin(PokemonSpecies, Pokemon.id == PokemonSpecies.id)
+    total = query.count()  # Nombre total d'éléments
+
+    paginated_pokemons = query.paginate(page=page, per_page=per_page, error_out=False)  # Pagination
+
     # Construction des liens pour naviguer entre les pages
-    next_url = f'/api/pokemon?page={pokemons.next_num}&per_page={per_page}' if pokemons.has_next else None
-    prev_url = f'/api/pokemon?page={pokemons.prev_num}&per_page={per_page}' if pokemons.has_prev else None
+    next_url = f'/api/pokemon?page={paginated_pokemons.next_num}&per_page={per_page}' if paginated_pokemons.has_next else None
+    prev_url = f'/api/pokemon?page={paginated_pokemons.prev_num}&per_page={per_page}' if paginated_pokemons.has_prev else None
 
-    return jsonify(
-        {
-            "pokemons": pokemons_schema.dump(pokemons.items),
-            "total": pokemons.total,
-            "pages": pokemons.pages,
-            "current_page": pokemons.page,
+    # Sérialisation des résultats
+    results = []
+    for p in paginated_pokemons.items:
+        pokemon_data = pokemon_schema.dump(p[0])  # Données de la table `pokemon`
+        species_data = pokemon_species_schema.dump(p[1]) if p[1] else {}
+
+        # Assurer que `identifier` et `order` viennent bien de `pokemon`
+        species_data["identifier"] = pokemon_data["identifier"]
+        species_data["order"] = pokemon_data["order"]
+
+        results.append({**pokemon_data, **species_data})
+
+
+    return jsonify({
+            "total": total,
+            "page": page,
+            "prev_page": prev_url,
             "next_page": next_url,
-            "prev_page": prev_url
-        }
-    )
+            "per_page": per_page,
+            "data": results
+        })
 
-#route pour récupérer un pokemon par son id
+
+
 @app.route("/api/pokemon/<int:id>", methods=["GET"])
 def get_pokemon(id):
-    pokemon = Pokemon.query.get_or_404(id) #récupération du pokemon par son id ou 404 si non trouvé
-    return jsonify(pokemon_schema.dump(pokemon))
+    pokemon = db.session.query(Pokemon, PokemonSpecies).outerjoin(PokemonSpecies, Pokemon.id == PokemonSpecies.id).filter(
+        Pokemon.id == id).first()
+    if not pokemon:
+        return jsonify({"message": "Pokemon not found"}), 404
 
-#route pour modifier les données d'un pokemon récupéré par son id
-@app.route("/api/pokemon/<int:id>",methods=["PUT"])
+
+    pokemon_data = pokemon_schema.dump(pokemon[0])  # Données de la table `pokemon`
+    species_data = pokemon_species_schema.dump(pokemon[1]) if pokemon[1] else {}
+
+    species_data["identifier"] = pokemon_data["identifier"]
+    species_data["order"] = pokemon_data["order"]
+
+    return jsonify({**pokemon_data, **species_data})
+
+
+@app.route("/api/pokemon/<int:id>", methods=["PUT"])
 def update_pokemon(id):
-    pokemon = Pokemon.query.get_or_404(id) # Vérifie si le Pokémon existe sinon retourne 404
-
-    #récupérer les données de la requête de l'utilisateur
     data = request.json
-    print(data["identifier"])
-
     if not data:
         return jsonify({"message": "No input data provided"}), 400
 
-    modified = False
+    # Construction du dictionnaire des champs à mettre à jour
+    update_data = {key: data[key] for key in data if key in Pokemon.__table__.columns and data[key] is not None}
 
-    #vérifier si les données sont présentes avant de les modifier
-    if "identifier" in data and data["identifier"] != pokemon.identifier:
-        pokemon.identifier = data["identifier"]
-        modified = True
-
-    if "height" in data and data["height"] != pokemon.height:
-        pokemon.height = data["height"]
-        modified = True
-
-    if "weight" in data and data["weight"] != pokemon.weight:
-        pokemon.weight = data["weight"]
-        modified = True
-
-    if not modified:
+    if not update_data:
         return jsonify({"message": "No data changed"}), 400
 
-    db.session.commit() #sauvegarde des modifications dans la base de données
+    # Mise à jour en une seule requête SQL
+    db.session.query(Pokemon).filter_by(id=id).update(update_data)
+    db.session.commit()
+    db.session.expire_all() # Forcer le rafraîchissement des données
 
-    return jsonify({"message": "Pokemon updated successfully", "pokemon": pokemon_schema.dump(pokemon)})
-
+    return jsonify({"message": "Pokemon updated successfully"})
 
 @app.route("api/pokemon/", methods=["POST"])
 def add_pokemon():
