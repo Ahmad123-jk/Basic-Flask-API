@@ -24,6 +24,7 @@ class Pokemon(db.Model):
     base_experience = db.Column(db.Integer)
     order = db.Column(db.Integer)
     is_default = db.Column(db.Boolean)
+    types = db.relationship("PokemonType", backref="pokemon", cascade="all, delete-orphan")
 
 class PokemonSpecies(db.Model):
     __tablename__ = 'pokemon_species'
@@ -53,11 +54,25 @@ class PokemonColor(db.Model):
     __tablename__ = 'pokemon_colors'
     id = db.Column(db.Integer, primary_key=True)
     identifier = db.Column(db.String(50))
+  
 
 class PokemonShape(db.Model):
     __tablename__ = 'pokemon_shapes'
     id = db.Column(db.Integer, primary_key=True)
     identifier = db.Column(db.String(50))
+
+class PokemonType(db.Model):
+    __tablename__ = 'pokemon_types'
+    id = db.Column(db.Integer, db.ForeignKey('pokemon.id'), primary_key=True)
+    type_id = db.Column(db.Integer, db.ForeignKey('types.id'), primary_key=True)
+    slot = db.Column(db.Integer)
+
+class Type(db.Model):
+    __tablename__ = 'types'
+    id = db.Column(db.Integer, primary_key=True)
+    identifier = db.Column(db.String(50))
+    generation_id = db.Column(db.Integer)
+    damage_class_id = db.Column(db.Integer)
 
 
 #schémas pour la sérialisation JSON
@@ -156,7 +171,16 @@ def update_pokemon(id):
 
     return jsonify({"message": "Pokemon updated successfully"})
 
+@app.route("/api/pokemon/<int:id>", methods=["DELETE"])
+def delete_pokemon(id):
+    pokemon = Pokemon.query.get(id)
+    if not pokemon:
+        return jsonify({"message": "Pokemon not found"}), 404
 
+    db.session.delete(pokemon)
+    db.session.commit()
+
+    return jsonify({"message": "Pokemon deleted successfully"})
 
 
 if __name__ == '__main__':
