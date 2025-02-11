@@ -17,13 +17,14 @@ ma = Marshmallow(app)
 # Modèle des tables
 class Pokemon(db.Model):
     __tablename__ = 'pokemon'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     identifier = db.Column(db.String(50))
     height = db.Column(db.Integer)
     weight = db.Column(db.Integer)
     base_experience = db.Column(db.Integer)
     order = db.Column(db.Integer)
     is_default = db.Column(db.Boolean)
+    species_id = db.Column(db.Integer, db.ForeignKey('pokemon_species.id'))
 
 class PokemonSpecies(db.Model):
     __tablename__ = 'pokemon_species'
@@ -82,7 +83,7 @@ def hello_world():
         "message": "Hello, World!"
     }
 
-@app.route("/api/pokemon",methods=["GET"])
+@app.route("/api/pokemons",methods=["GET"])
 def get_pokemons():
     page = request.args.get('page', 1, type=int)  # Page par défaut = 1
     per_page = request.args.get('per_page', 10, type=int)  # Nombre d'éléments par page (par défaut 10)
@@ -120,7 +121,7 @@ def get_pokemons():
 
 
 
-@app.route("/api/pokemon/<int:id>", methods=["GET"])
+@app.route("/api/pokemons/<int:id>", methods=["GET"])
 def get_pokemon(id):
     pokemon = db.session.query(Pokemon, PokemonSpecies).outerjoin(PokemonSpecies, Pokemon.id == PokemonSpecies.id).filter(
         Pokemon.id == id).first()
@@ -137,7 +138,7 @@ def get_pokemon(id):
     return jsonify({**pokemon_data, **species_data})
 
 
-@app.route("/api/pokemon/<int:id>", methods=["PUT"])
+@app.route("/api/pokemons/<int:id>", methods=["PUT"])
 def update_pokemon(id):
     data = request.json
     if not data:
@@ -156,21 +157,45 @@ def update_pokemon(id):
 
     return jsonify({"message": "Pokemon updated successfully"})
 
-@app.route("api/pokemon/", methods=["POST"])
+@app.route("/api/pokemons/", methods=["POST"])
 def add_pokemon():
     try:
         data = request.json
 
-        # Validate required fields
-        required_fields = ["id", "identifier", "species_id", "height", "weight", "base_experience", "order",
-                           "is_default"]
-        if not all(field in data for field in required_fields):
-            return jsonify({"error": "Missing required fields"}), 400
+        # Check if species already exists
+        species = None
+        if data["evolves_from_species_id"] is None:
+            # Create new species
+            species = PokemonSpecies(
+                identifier=data["identifier"],
+                generation_id=data["generation_id"],
+                evolves_from_species_id=data["evolves_from_species_id"],
+                evolution_chain_id=data["evolution_chain_id"],
+                color_id=data["color_id"],
+                shape_id=data["shape_id"],
+                habitat_id=data["habitat_id"],
+                gender_rate=data["gender_rate"],
+                capture_rate=data["capture_rate"],
+                base_happiness=data["base_happiness"],
+                is_baby=data["is_baby"],
+                hatch_counter=data["hatch_counter"],
+                has_gender_differences=data["has_gender_differences"],
+                growth_rate_id=data["growth_rate_id"],
+                forms_switchable=data["forms_switchable"],
+                order=data["order"],
+                conquest_order=data["conquest_order"]
+            )
+            db.session.add(species)
+            db.session.flush()  # Ensures we get the species ID before commit
 
+            species_id = species.id  # Get the newly generated ID
+        else:
+            species_id = data["evolves_from_species_id"]
+
+        # Create the Pokemon entry
         new_pokemon = Pokemon(
-            id=data["id"],
             identifier=data["identifier"],
-            species_id=data["species_id"],
+            species_id=species_id,
             height=data["height"],
             weight=data["weight"],
             base_experience=data["base_experience"],
@@ -181,7 +206,8 @@ def add_pokemon():
         db.session.add(new_pokemon)
         db.session.commit()
 
-        return jsonify({"message": "Pokemon added successfully!", "pokemon": data}), 201
+        json_data = pokemon_schema.dump(new_pokemon)
+        return jsonify({"message": "Pokemon added successfully!", "pokemon": json_data}), 201
 
     except Exception as e:
         db.session.rollback()
