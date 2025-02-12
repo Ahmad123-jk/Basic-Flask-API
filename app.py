@@ -2,12 +2,13 @@ from flask import Flask, jsonify, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask import request
+import os
 
 app = Flask(__name__)
 
 
 #configuration de la connexion PostgreSQL
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost:5432/postgres'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI', 'postgresql://postgres:postgres@localhost:5432/postgres')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 #initialisation de la base de données et de Marshmallow
@@ -97,7 +98,7 @@ def home():
         "message": "Welcome to the Pokemon API: /api/pokemons"
     }
 
-@app.route("/api/pokemons",methods=["GET"])
+@app.route("/api/pokemons", methods=["GET"])
 def get_pokemons():
     try:
         page = request.args.get('page', 1, type=int)  # Page par défaut = 1
