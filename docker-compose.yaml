@@ -1,8 +1,30 @@
+version: '3.8'
+
 services:
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
   flask-api:
     build: .
     container_name: flask-api
     ports:
       - "5000:5000"
+    depends_on:
+      - db  # Attendre que la DB soit prête avant de lancer Flask
+    environment:
+      - SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@db:5432/postgres
     volumes:
       - .:/app
+
+volumes:
+  pg_data:
