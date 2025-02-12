@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  flask-api:
+    build: .
+    container_name: flask-api
+    ports:
+      - "5000:5000"
+    environment:
+      - SQLALCHEMY_DATABASE_URI=postgresql://postgres:postgres@db:5432/postgres
+    depends_on:
+      - db
+    networks:
+      - flask_network
+    volumes:
+      - .:/app
+
+  db:
+    image: postgres:17.2
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgresql-dump.sql:/docker-entrypoint-initdb.d/postgresql-dump.sql
+    networks:
+      - flask_network
+
+volumes:
+  postgres_data:
+
+networks:
+  flask_network:
+    driver: bridge
