@@ -25,6 +25,7 @@ class Pokemon(db.Model):
     order = db.Column(db.Integer)
     is_default = db.Column(db.Boolean)
     species_id = db.Column(db.Integer, db.ForeignKey('pokemon_species.id'))
+    types = db.relationship("PokemonType", backref="pokemon", cascade="all, delete-orphan")
 
 class PokemonSpecies(db.Model):
     __tablename__ = 'pokemon_species'
@@ -60,6 +61,19 @@ class PokemonShape(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     identifier = db.Column(db.String(50))
 
+class PokemonType(db.Model):
+    __tablename__ = 'pokemon_types'
+    id = db.Column(db.Integer, db.ForeignKey('pokemon.id'), primary_key=True)
+    type_id = db.Column(db.Integer, db.ForeignKey('types.id'), primary_key=True)
+    slot = db.Column(db.Integer)
+
+class Type(db.Model):
+    __tablename__ = 'types'
+    id = db.Column(db.Integer, primary_key=True)
+    identifier = db.Column(db.String(50))
+    generation_id = db.Column(db.Integer)
+    damage_class_id = db.Column(db.Integer)
+
 
 #schémas pour la sérialisation JSON
 class PokemonSchema(ma.SQLAlchemyAutoSchema):
@@ -78,9 +92,9 @@ pokemon_schema = PokemonSchema()
 pokemon_species_schema = PokemonSpeciesSchema()
 
 @app.route("/")
-def hello_world():
+def home():
     return {
-        "message": "Hello, World!"
+        "message": "Welcome to the Pokemon API: /api/pokemons"
     }
 
 @app.route("/api/pokemons",methods=["GET"])
@@ -219,6 +233,17 @@ def add_pokemon():
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/pokemons/<int:id>", methods=["DELETE"])
+def delete_pokemon(id):
+    pokemon = Pokemon.query.get(id)
+    if not pokemon:
+        return jsonify({"message": "Pokemon not found"}), 404
+
+    db.session.delete(pokemon)
+    db.session.commit()
+
+    return jsonify({"message": "Pokemon deleted successfully"})
 
 if __name__ == '__main__':
     app.run(debug=True)
