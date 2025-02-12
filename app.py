@@ -92,9 +92,9 @@ pokemon_schema = PokemonSchema()
 pokemon_species_schema = PokemonSpeciesSchema()
 
 @app.route("/")
-def hello_world():
+def home():
     return {
-        "message": "Hello, World!"
+        "message": "Welcome to the Pokemon API: /api/pokemons"
     }
 
 @app.route("/api/pokemons",methods=["GET"])
